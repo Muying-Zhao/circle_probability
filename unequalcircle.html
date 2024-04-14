@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>不等风不同概率转盘抽奖</title>
+    <style>
+        .box {
+            width: 100%;
+            height: 550px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            margin: 20px auto;
+            /* 设置旋转中心点 */
+            transform-origin: center center;
+        }
+
+        svg {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 70px;
+            height: 70px;
+            margin-left: -35px;
+            margin-top: -65px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <canvas id="rouletteCanvas" width="302" height="302"></canvas>
+        <svg t="1713059543990" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+            p-id="1835" width="200" height="200">
+            <path
+                d="M263.577601 776.630449a242.559588 242.559588 0 0 1 138.417007-218.124973L483.818959 23.36268a27.485506 27.485506 0 0 1 54.283873 0l81.824351 535.142796a242.559588 242.559588 0 0 1 138.417006 218.124973 247.369551 247.369551 0 0 1-494.739102 0z"
+                p-id="1836" fill="#f4ad13"></path>
+        </svg>
+        <button onclick="startSpinning()">开始抽奖</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('rouletteCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 转盘参数  
+        const numSegments = 8; // 奖项数量  
+        const anglePerSegment = Math.PI * 2; // 每个奖项的角度  Math.PI=π
+        const radius = 150; // 转盘半径  
+        const centerX = canvas.width / 2; // 转盘中心X坐标  
+        const centerY = canvas.height / 2; // 转盘中心Y坐标  
+        const pointerLength = 50; // 指针长度  
+        const prizeProbabilities = [0.05, 0.05, 0.05, 0.05, 0.10, 0.2, 0.25, 0.25]; // 各个奖项的概率  
+        const prizeText = ['奖品1', '奖品2', '奖品3', '奖品4', '奖品5', '奖品6', '奖品7', '奖品8'];
+        const prizeColors = ['#ff0000', '#8e44ad', '#0000ff', '#32cd32', '#f0f', '#ff5733', '#90ee90', '#888888']; // 各奖项背景颜色  
+        // 绘制转盘背景  
+        function drawRoulette() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);//清除整个 <canvas> 元素上的所有内容，将画布恢复到初始的空白状态。
+            for (let i = 0; i < numSegments; i++) {
+                let formattedCumulativeProbabilities = unequalAngle()
+                const startAngle = (Number(formattedCumulativeProbabilities[i]) + 0.75) * anglePerSegment;//起始角度 通过控制i+n来控制起始角度
+                const endAngle = (Number(formattedCumulativeProbabilities[i + 1]) + 0.75) * anglePerSegment;//结尾角度
+                const x = centerX + Math.cos(startAngle) * radius;
+                const y = centerY + Math.sin(startAngle) * radius;
+                // 圆形路径的一部分，具体是一个圆弧。
+                ctx.beginPath();
+                // ctx.arc(centerX, centerY, radius, startAngle, endAngle, false);
+                // centerX 和 centerY：圆弧所在圆的圆心坐标。
+                // radius：圆弧所在圆的半径。
+                // startAngle 和 endAngle：圆弧的起始角度和结束角度，以弧度为单位。
+                // 这个参数表示绘制的是逆时针方向的圆弧。如果设置为true，则会绘制顺时针方向的圆弧。
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle, false);
+                // 绘制连接圆心的线段（可选，如果填充的话不需要，因为fill()会自动闭合路径）  
+                ctx.lineTo(centerX, centerY);
+                ctx.closePath();
+                // 填充扇形区域
+                ctx.fillStyle = prizeColors[i];
+                /* 
+                arc()方法绘制的圆弧不会自动连接到圆心，因此如果你想要一个完整的扇形效果
+                （包括从圆弧到圆心的线段），你需要手动绘制这些线段。但是，对于填充操作，
+                你不需要手动闭合路径，因为fill()会自动处理这个问题。
+                */
+                ctx.fill();
+                // 如果需要，也可以绘制扇形的边框  
+                ctx.lineWidth = 1; // 设置边框宽度  
+                ctx.strokeStyle = '#666'; // 设置边框颜色  
+                ctx.stroke();
+                // 绘制文本  
+                const textAngle = startAngle + (endAngle - startAngle) / 2;//文本位于圆盘的deg
+                const textX = centerX + Math.cos(textAngle) * (radius - 40);//x轴上的坐标值,基于圆的半径和指定的角度Angle 
+                /* 
+                let degrees = 45;  
+                let radians = degrees * (Math.PI / 180);  
+                let cosineValue = Math.cos(radians);  
+                console.log(cosineValue); // 输出45度角的余弦值
+                */
+                const textY = centerY + Math.sin(textAngle) * (radius - 40);//y轴上的坐标值,基于圆的半径和指定的角度Angle 
+                ctx.save();//保存当前的Canvas状态，以便之后可以恢复它
+                ctx.translate(textX, textY);// 将Canvas的原点移动到(textX, textY)位置，这样后续的绘制操作都将基于这个新的原点  
+                ctx.rotate(textAngle);// 旋转Canvas，使得文本能够沿着指定的textAngle方向排列  
+                ctx.textAlign = 'center';// 设置文本的对齐方式为居中，这样文本会在当前位置的中心点绘制 
+                /*
+                ctx.textBaseline 可以设置为以下几个值：
+                'alphabetic'：默认值。文本基线是普通的字母基线。
+                'top'：文本基线是字体边界框的顶部。
+                'middle'：文本基线位于字体边界框的中部。
+                'ideographic'：文本基线是表意字符（如中文、日文、韩文等）的基线。
+                'hanging'：文本基线是悬挂基线，用于某些脚本（如藏文）的下降部分。
+                'bottom'：文本基线是字体边界框的底部。
+                */
+                ctx.textBaseline = 'middle';// 设置文本的基线为中间，确保文本垂直居中  
+                ctx.fillStyle = '#fff';// 设置文本填充颜色为白色  
+                ctx.fillText(prizeText[i], 0, 0);//指定位置绘制文本，由于之前使用了 ctx.translate(textX, textY) 和 ctx.rotate(textAngle)，这个坐标是基于平移和旋转后的新坐标系。
+                ctx.restore();
+            }
+        }
+
+
+        function unequalAngle() {
+            const cumulativeProbabilities = prizeProbabilities.reduce((acc, val, idx) => {
+                //    console.log(acc, val, idx, 'acc, val, idx')
+                const sum = (acc[(acc.length - 1)] || 0) + val;
+                return idx === 0 ? [sum] : [...acc, sum];
+            }, []);
+            // map() 方法遍历 cumulativeProbabilities 数组中的每个元素，并使用 toFixed(2) 将每个元素转换为字符串，结果保留两位小数。
+            const formattedCumulativeProbabilities = cumulativeProbabilities.map(num => num.toFixed(2));
+            // 添加初始累积概率为0  
+            formattedCumulativeProbabilities.unshift('0');
+            return formattedCumulativeProbabilities
+        }
+
+
+        // 根据概率计算最终角度  
+        function calculateFinalAngle() {
+            let formattedCumulativeProbabilities = unequalAngle()
+            // 示例：随机选择一个奖项  
+            const calculateFinal = getRandomPrize(formattedCumulativeProbabilities);
+            // console.log(`Selected prize index: ${prizeIndex}`);
+            return calculateFinal
+        }
+        // 随机选择一个奖项  
+        function getRandomPrize(cumulativeProbabilities) {
+            // console.log(cumulativeProbabilities, 'cumulativeProbabilities')
+            const random = Math.random();
+            for (let i = 0; i < cumulativeProbabilities.length - 1; i++) {
+                if (random >= cumulativeProbabilities[i] && random < cumulativeProbabilities[i + 1]) {
+                    return { i, random }; // 返回奖项的索引  
+                }
+            }
+            // 如果随机数恰好等于1，返回最后一个奖项（虽然这种情况理论上不会发生）  
+            return cumulativeProbabilities.length - 2;
+        }
+
+        // 开始旋转转盘  
+        function startSpinning() {
+            let lastAngle = 0
+            if (sessionStorage.getItem('num')) {
+                // 使用getItem方法从sessionStorage中获取数据 , 注意要字符串转出num类型
+                lastAngle = Number(sessionStorage.getItem('num'));
+            }
+            let finalAngle = lastAngle; // 根据概率计算最终的停止角度  
+            // console.log(finalAngle, 'lastAngle')
+            let spins = 1; // 转盘旋转的圈数,至少转多少圈
+            let duration = 3000; // 旋转总时长（毫秒）  
+            let startTime = null;
+            let elapsedTime = 0;
+            let isSpinning = true;
+
+
+            // 各个奖项被转到的概率分配
+            // let calculateFinal = calculateFinalAngle()
+            // console.log(calculateFinal, 'calculateFinal')
+            // let calculateFinalRandom = 1 - Number(calculateFinal.random).toFixed(2)
+            // console.log(calculateFinalRandom, 'calculateFinalRandom')
+            let endAngle = Math.floor((Math.random() + spins) * 360);  //最终旋转角度
+            // console.log(endAngle, 'endAngle')
+            function animate() {
+                if (!isSpinning) return; // 如果转盘已经停止，则退出动画循环  
+                const now = Date.now();//获取当前时间的毫秒数
+                if (!startTime) startTime = now;
+                elapsedTime = now - startTime;
+
+                let percentage = Math.min(elapsedTime / duration, 1); // 计算动画进度百分比  
+
+                // console.log(percentage, 'percentage')
+                let currentAngle = finalAngle + endAngle * percentage; // 计算当前角度  
+                // console.log(currentAngle, 'currentAngle')
+                // 清除画布并绘制转盘和指针  
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawRoulette();//绘制转盘背景
+                rotateCanvas(currentAngle)//添上转盘旋转动画
+                // 如果动画未完成，则继续下一帧  
+                if (elapsedTime < duration) {
+                    // 用于在下一次浏览器重绘之前执行一个特定的函数，以便为动画提供一个平滑且高效的更新机制。
+                    // 这种方法通常用于动画循环，因为它确保动画与浏览器的刷新率同步，从而提供流畅的动画效果。
+                    /*
+                    使用 requestAnimationFrame 而不是 setTimeout 或 setInterval 的主要优势在于：
+                    效率：requestAnimationFrame 只在浏览器准备重绘时调用你的函数，这意味着它不会浪费计算资源。而 setTimeout 和 setInterval 可能会在不必要的时候触发回调，尤其是在动画帧之间。
+                    性能：与浏览器的刷新率同步可以确保动画的流畅性，因为动画会在每一帧都更新，而不是基于一个固定的时间间隔。
+                    节能：当标签页不可见或浏览器最小化时，大多数浏览器会选择降低 requestAnimationFrame 的调用频率，这有助于节省电能。
+                    */
+                    requestAnimationFrame(animate);
+                } else {
+                    stopSpinning(currentAngle);
+                }
+            }
+
+            function rotateCanvas(angle) {
+                // console.log(angle, 'angle')
+                var rotateDiv = document.getElementById('rouletteCanvas');
+                // 设置元素的旋转角度  
+                rotateDiv.style.transform = 'rotate(' + angle + 'deg)';
+            }
+
+            // 停止旋转并显示结果  
+            function stopSpinning(StopAngle) {
+                // console.log(StopAngle, 'StopAngle')
+                isSpinning = false;
+
+                let pie = 360
+                let pie_span = 45
+                // 使用setItem方法将数据存储到sessionStorage中 
+                //  存储的是字符串类型
+                sessionStorage.setItem('num', StopAngle % pie);
+                let x = (pie - StopAngle % pie) / pie// x=(360-StopAngle%360)/360
+                // console.log(x, 'x')
+                let unequalArr = unequalAngle()
+                // Number(unequalArr[i])
+
+                for (let i = 0; i < unequalArr.length - 1; i++) {
+                    if (x > unequalArr[i] && x <= unequalArr[i + 1]) {
+                        // console.log(i + 1, 'i')
+                        // 显示获得的奖品  
+                        alert(`恭喜您获得了：${prizeText[i]}`);
+                    }
+                }
+            }
+
+            // 开始动画  
+            animate();
+        }
+        // 初始化转盘和指针  
+        drawRoulette();
+        // 页面监听卸载
+        window.addEventListener('beforeunload', function () {
+            sessionStorage.clear();
+        });
+    </script>
+</body>
+
+</html>
